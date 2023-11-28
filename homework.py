@@ -33,18 +33,13 @@ HOMEWORK_VERDICTS = {
 }
 
 
-class SendingError(Exception):
-    """Is a class docstring."""
-
-    ...
-
-
 def check_tokens():
     """Проверяем доступность переменных окружения."""
-    if PRACTICUM_TOKEN is None or TELEGRAM_TOKEN\
-            is None or TELEGRAM_CHAT_ID is None:
-        return False
-    return True
+    return (
+        PRACTICUM_TOKEN is not None
+        or TELEGRAM_TOKEN is not None
+        or TELEGRAM_CHAT_ID is not None
+    )
 
 
 def send_message(bot, message):
@@ -54,7 +49,6 @@ def send_message(bot, message):
         logging.debug('Сообщение отправлено')
     except Exception:
         logging.error('Сообщение не отправлено')
-        raise SendingError
 
 
 def get_api_answer(timestamp):
@@ -65,15 +59,12 @@ def get_api_answer(timestamp):
             headers=HEADERS,
             params={'from_date': timestamp})
         response.raise_for_status()
-        if response.status_code == HTTPStatus.OK:
-            return response.json()
-        else:
-            logging.error(f'Ошибка запроса. Код статуса:'
-                          f' {response.status_code}')
-            raise ConnectionError()
-    except requests.RequestException as error:
-        logging.error(f'Ошибка при запросе к основному API: {error}')
+    except requests.RequestException:
         raise ConnectionError()
+
+    if response.status_code == HTTPStatus.OK:
+        return response.json()
+    raise ConnectionError()
 
 
 def check_response(response: dict):
@@ -86,11 +77,7 @@ def check_response(response: dict):
 
     if not isinstance(homeworks, list):
         raise TypeError("Данные под ключом 'homeworks' не являются списком")
-
-    if not homeworks:
-        raise ValueError("Список homeworks отсутствует или пуст")
-
-    return homeworks[0]
+    return homeworks
 
 
 def parse_status(homework):
@@ -123,18 +110,21 @@ def main():
     while True:
         try:
             response = get_api_answer(timestamp)
+            if not get_api_answer(timestamp):
+                logging.error('Ошибка при запросе к основному API')
             homework = check_response(response)
-            message = parse_status(homework)
+            if not check_response(response):
+                logging.error('Ошибка запроса. Код статуса:')
+            message = parse_status(homework[0])
+            # Сюда перенес [0] т.к не получилось избавиться от ошибки
             if message != '':
-                send_message(bot, message)
-            else:
-                raise SendingError
-        except SendingError:
-            logging.error('Сообщение не отправлено')
+                if not send_message(bot, message):
+                    logging.error('Ошибка при отправке сообщения в Телеграм')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
-        time.sleep(RETRY_PERIOD)
+        finally:
+            time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
