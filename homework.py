@@ -70,7 +70,6 @@ def get_api_answer(timestamp):
 def check_response(response: dict):
     """Проверяем запрос полученный от API."""
     if not isinstance(response, dict):
-        logging.error('Ответ не является словарем', exc_info=True)
         raise TypeError("Ответ не является словарем")
 
     homeworks = response.get('homeworks')
@@ -86,12 +85,9 @@ def parse_status(homework):
     homework_name = homework.get('homework_name')
 
     if status is None or homework_name is None:
-        logging.error('Отсутствует ключ "status" или "homework_name"',
-                      exc_info=True)
         raise ValueError('Отсутствует ключ "status" или "homework_name"')
 
     if status not in HOMEWORK_VERDICTS:
-        logging.warning(f'Недокументированный статус: {status}')
         raise ValueError('Недокументированный статус')
 
     verdict = HOMEWORK_VERDICTS[status]
@@ -110,16 +106,20 @@ def main():
     while True:
         try:
             response = get_api_answer(timestamp)
-            if not get_api_answer(timestamp):
+            if not response:
                 logging.error('Ошибка при запросе к основному API')
-            homework = check_response(response)
-            if not check_response(response):
+            homeworks = check_response(response)
+            if not homeworks:
                 logging.error('Ошибка запроса. Код статуса:')
-            message = parse_status(homework[0])
-            # Сюда перенес [0] т.к не получилось избавиться от ошибки
+            if not homeworks[0]:
+                continue
+            message = parse_status(homeworks[0])
+            if not message:
+                logging.error('Отсутствует ключ "status" или "homework_name"',
+                              exc_info=True)
             if message != '':
-                if not send_message(bot, message):
-                    logging.error('Ошибка при отправке сообщения в Телеграм')
+                send_message(bot, message)
+                logging.error('Ошибка при отправке сообщения в Телеграм')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
