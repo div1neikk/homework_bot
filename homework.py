@@ -37,8 +37,8 @@ def check_tokens():
     """Проверяем доступность переменных окружения."""
     return (
         PRACTICUM_TOKEN is not None
-        or TELEGRAM_TOKEN is not None
-        or TELEGRAM_CHAT_ID is not None
+        and TELEGRAM_TOKEN is not None
+        and TELEGRAM_CHAT_ID is not None
     )
 
 
@@ -106,22 +106,16 @@ def main():
     while True:
         try:
             response = get_api_answer(timestamp)
-            if not response:
-                logging.error('Ошибка при запросе к основному API')
             homeworks = check_response(response)
             if not homeworks:
-                logging.error('Ошибка запроса. Код статуса:')
-            if not homeworks[0]:
                 continue
             message = parse_status(homeworks[0])
-            if not message:
-                logging.error('Отсутствует ключ "status" или "homework_name"',
-                              exc_info=True)
             if message != '':
                 send_message(bot, message)
-                logging.error('Ошибка при отправке сообщения в Телеграм')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
+            response = 'Ошибка при запросе к основному API'
+            logging.error(response)
             logging.error(message)
         finally:
             time.sleep(RETRY_PERIOD)
